@@ -2,12 +2,12 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <title>Module 1 : Initialisation du projet + Base de données MySQL</title><link rel="stylesheet" href="style.css">
+  <title>Module 1 : Initialisation du projet + Base de données MySQL</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
   <nav>
- 
     <ul>
       <li><a href="index.html">Accueil</a></li>
       <li><a href="./01_initialisation_du_projet_base_de_donn_es_mysql.html">Initialisation</a></li>
@@ -17,9 +17,10 @@
       <li><a href="./05_crud_cat_gories.html">CRUD Catégories</a></li>
       <li><a href="./06_crud_articles.html">CRUD Articles</a></li>
       <li><a href="./07_gestion_des_erreurs_s_curit.html">Gestion des erreurs</a></li>
-      <li><a href="./08_Sécurité_avancée_&_bonnes_pratiques.html">Sécurité avancée</a></li>
+      <li><a href="./08_s_curit_avanc_e_bonnes_pratiques.html">Sécurité avancée</a></li>
     </ul>
   </nav>
+
   <h1>Module 1 : Initialisation du projet + Base de données MySQL</h1>
 
   <p>
@@ -29,7 +30,7 @@
   <ul>
     <li>Node.js en mode <strong>ESM</strong> (ECMAScript Modules)</li>
     <li>Express.js comme framework serveur</li>
-    <li>Sequelize avec <code>mysql2/promise</code> pour l’ORM</li>
+    <li>Connexion MySQL directe avec <code>mysql2/promise</code></li>
     <li>Une base de données MySQL</li>
   </ul>
 
@@ -47,7 +48,7 @@ npm init -y</code></pre>
 
   <h2>2. Installer les dépendances de base</h2>
   <p>Installez les dépendances nécessaires :</p>
-  <pre><code>npm install express sequelize mysql2 dotenv</code></pre>
+  <pre><code>npm install express mysql2 dotenv</code></pre>
 
   <h2>3. Arborescence du projet</h2>
   <p>Organisez le projet avec une architecture MVC propre :</p>
@@ -69,41 +70,41 @@ DB_PASSWORD=motdepasse
 DB_NAME=apirestdb</code></pre>
 
   <h3>Fichier <code>config/database.js</code></h3>
-  <pre><code>import { Sequelize } from "sequelize";
+  <pre><code>import mysql from "mysql2/promise";
 import dotenv from "dotenv";
 dotenv.config();
 
-const sequelize = new Sequelize(
-  process.env.DB_NAME,
-  process.env.DB_USER,
-  process.env.DB_PASSWORD,
-  {
-    host: process.env.DB_HOST,
-    dialect: "mysql",
-    logging: false,
-  }
-);
+const pool = mysql.createPool({
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0,
+});
 
-export default sequelize;</code></pre>
+export default pool;</code></pre>
 
-  <p>Ce fichier initialise Sequelize avec vos variables d’environnement.</p>
+  <p>Ce fichier configure une pool de connexions MySQL prête à être utilisée dans vos requêtes SQL.</p>
 
   <h2>5. Point d’entrée : <code>app.js</code></h2>
-  <p>Créez un fichier <code>app.js</code> simple pour démarrer :</p>
+  <p>Créez un fichier <code>app.js</code> pour initialiser Express et tester la connexion :</p>
   <pre><code>import express from "express";
-import sequelize from "./config/database.js";
+import pool from "./config/database.js";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 
-// Test DB
+// Test de la connexion MySQL
 try {
-  await sequelize.authenticate();
-  console.log("Connexion à la base de données réussie !");
+  const connection = await pool.getConnection();
+  console.log("Connexion à MySQL réussie !");
+  connection.release();
 } catch (error) {
-  console.error("Erreur de connexion :", error);
+  console.error("Erreur de connexion à MySQL :", error);
 }
 
 app.get("/", (req, res) => {
@@ -127,9 +128,9 @@ app.listen(PORT, () => {
   <p>À ce stade, vous avez :</p>
   <ul>
     <li>Initialisé un projet Node.js en mode ESM</li>
-    <li>Installé les dépendances de base</li>
-    <li>Créé un serveur Express simple</li>
-    <li>Connecté Sequelize à une base de données MySQL</li>
+    <li>Installé Express et MySQL2</li>
+    <li>Mis en place un fichier de configuration pour se connecter à MySQL avec <code>mysql2/promise</code></li>
+    <li>Démarré un serveur Express simple</li>
   </ul>
 
   <p>Dans le prochain module, nous allons créer le modèle <code>User</code> et mettre en place

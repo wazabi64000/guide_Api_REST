@@ -1,22 +1,27 @@
-  body {
+    body {
       margin: 0;
+      padding: 20px 40px; /* padding global */
       font-family: Arial, sans-serif;
-      background-color: #f9f9f9;
+      background-color: #f0f4f8; /* couleur de fond claire et douce */
+      color: #333;
+      min-height: 100vh;
+      box-sizing: border-box;
     }
 
+    /* Barre de navigation */
     nav {
-      background-color: #222;
+      background-color: #1e2a38; /* bleu foncé */
       padding: 1rem 2rem;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      flex-wrap: wrap;
-      position: sticky;
-      top: 0;
+      border-radius: 6px;
+      margin-bottom: 2rem;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
     }
 
     nav .logo {
-      color: #fff;
+      color: #e3f2fd; /* bleu clair */
       font-weight: bold;
       font-size: 1.25rem;
       text-decoration: none;
@@ -38,7 +43,7 @@
     }
 
     nav ul li a {
-      color: #ddd;
+      color: #cfd8dc; /* gris clair */
       text-decoration: none;
       font-weight: 500;
       transition: color 0.3s ease;
@@ -46,11 +51,26 @@
 
     nav ul li a:hover,
     nav ul li a:focus {
-      color: #4caf50;
+      color: #81c784; /* vert clair */
       outline: none;
     }
 
-    /* Responsive simple */
+    /* Titres et paragraphes */
+    h1, h2 {
+      color: #263238;
+      margin-top: 0;
+    }
+
+    p, ul, li {
+      line-height: 1.6;
+      font-size: 1rem;
+    }
+
+    ul {
+      padding-left: 1.25rem;
+    }
+
+    /* Responsive */
     @media (max-width: 600px) {
       nav {
         flex-direction: column;

@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Module 3 : Gestion des rôles (user / admin)</title><link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <nav>
+    <a href="index.html" class="logo">API REST Node.js</a>
+    <ul>
+      <li><a href="index.html">Accueil</a></li>
+      <li><a href="./01_initialisation_du_projet_base_de_donn_es_mysql.html">Initialisation</a></li>
+      <li><a href="./02_authentification_compl_te.html">Authentification</a></li>
+      <li><a href="./03_gestion_des_r_les_user_admin.html">Gestion des rôles</a></li>
+      <li><a href="./04_crud_utilisateur.html">CRUD Utilisateur</a></li>
+      <li><a href="./05_crud_cat_gories.html">CRUD Catégories</a></li>
+      <li><a href="./06_crud_articles.html">CRUD Articles</a></li>
+      <li><a href="./07_gestion_des_erreurs_s_curit.html">Gestion des erreurs</a></li>
+      <li><a href="./08_Sécurité_avancée_&_bonnes_pratiques.html">Sécurité avancée</a></li>
+    </ul>
+  </nav>
+  <h1>Module 3 : Gestion des rôles avec MySQL et JWT</h1>
+
+  <p>
+    Dans ce module, nous allons :
+  </p>
+  <ul>
+    <li>Créer une table <code>roles</code></li>
+    <li>Associer un utilisateur à un rôle (user ou admin)</li>
+    <li>Créer un middleware de vérification des rôles</li>
+    <li>Protéger certaines routes</li>
+  </ul>
+
+  <h2>1. Créer la table <code>roles</code></h2>
+  <p>Dans MySQL :</p>
+  <pre><code>CREATE TABLE roles (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  name VARCHAR(50) NOT NULL UNIQUE
+);
+
+INSERT INTO roles (name) VALUES ('user'), ('admin');</code></pre>
+
+  <h2>2. Ajouter une colonne <code>role_id</code> à la table <code>users</code></h2>
+  <pre><code>ALTER TABLE users ADD COLUMN role_id INT DEFAULT 1;
+ALTER TABLE users
+  ADD CONSTRAINT fk_role
+  FOREIGN KEY (role_id) REFERENCES roles(id);</code></pre>
+
+  <h2>3. Modifier l'inscription pour associer un rôle</h2>
+  <p><strong>controllers/authController.js</strong> – mise à jour de <code>register</code> :</p>
+  <pre><code>export const register = async (req, res) => {
+  const { username, email, password, role = "user" } = req.body;
+  try {
+    const hashed = await bcrypt.hash(password, 10);
+
+    const [[roleRow]] = await pool.query("SELECT id FROM roles WHERE name = ?", [role]);
+    if (!roleRow) return res.status(400).json({ message: "Rôle invalide" });
+
+    await pool.query(
+      "INSERT INTO users (username, email, password, role_id) VALUES (?, ?, ?, ?)",
+      [username, email, hashed, roleRow.id]
+    );
+
+    res.status(201).json({ message: "Utilisateur créé avec succès" });
+  } catch (err) {
+    res.status(500).json({ message: "Erreur serveur", error: err.message });
+  }
+};</code></pre>
+
+  <h2>4. Ajouter le rôle dans le token JWT</h2>
+  <p><strong>login</strong> (mise à jour) :</p>
+  <pre><code>const [users] = await pool.query(
+  "SELECT users.*, roles.name AS role FROM users JOIN roles ON users.role_id = roles.id WHERE email = ?",
+  [email]
+);
+const user = users[0];
+
+const token = jwt.sign(
+  { id: user.id, email: user.email, role: user.role },
+  "votre_secret",
+  { expiresIn: "1h" }
+);</code></pre>
+
+  <h2>5. Middleware de contrôle d’accès</h2>
+  <p><strong>middlewares/roleMiddleware.js</strong> :</p>
+  <pre><code>export const authorizeRole = (roles) => {
+  return (req, res, next) => {
+    if (!roles.includes(req.user.role)) {
+      return res.status(403).json({ message: "Accès interdit" });
+    }
+    next();
+  };
+};</code></pre>
+
+  <h2>6. Exemple de route protégée</h2>
+  <p><strong>routes/adminRoutes.js</strong> :</p>
+  <pre><code>import express from "express";
+import { authenticate } from "../middlewares/authMiddleware.js";
+import { authorizeRole } from "../middlewares/roleMiddleware.js";
+
+const router = express.Router();
+
+router.get("/dashboard", authenticate, authorizeRole(["admin"]), (req, res) => {
+  res.json({ message: "Bienvenue sur le panneau d’administration" });
+});
+
+export default router;</code></pre>
+
+  <h2>7. Ajouter la route dans <code>app.js</code></h2>
+  <pre><code>import adminRoutes from "./routes/adminRoutes.js";
+app.use("/api/admin", adminRoutes);</code></pre>
+
+  <h2>8. Tester avec Postman</h2>
+  <ol>
+    <li>Créer un utilisateur avec rôle "admin"</li>
+    <li>Se connecter, récupérer le JWT</li>
+    <li>Envoyer une requête <code>GET /api/admin/dashboard</code> avec l’en-tête <code>Authorization: Bearer TOKEN</code></li>
+  </ol>
+
+  <h2>9. Résumé</h2>
+  <ul>
+    <li>Création et affectation d’un rôle à un utilisateur</li>
+    <li>Inclusion du rôle dans le token JWT</li>
+    <li>Protection des routes avec un middleware de rôle</li>
+  </ul>
+
+  <p>Dans le prochain module, nous verrons comment faire un <strong>CRUD utilisateur</strong> avec permissions.</p>
+</body>
+</html>

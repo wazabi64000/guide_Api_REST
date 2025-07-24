@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <title>Module 8 : Sécurité avancée & bonnes pratiques</title><link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <nav>
+    <a href="index.html" class="logo">API REST Node.js</a>
+    <ul>
+      <li><a href="index.html">Accueil</a></li>
+      <li><a href="./01_initialisation_du_projet_base_de_donn_es_mysql.html">Initialisation</a></li>
+      <li><a href="./02_authentification_compl_te.html">Authentification</a></li>
+      <li><a href="./03_gestion_des_r_les_user_admin.html">Gestion des rôles</a></li>
+      <li><a href="./04_crud_utilisateur.html">CRUD Utilisateur</a></li>
+      <li><a href="./05_crud_cat_gories.html">CRUD Catégories</a></li>
+      <li><a href="./06_crud_articles.html">CRUD Articles</a></li>
+      <li><a href="./07_gestion_des_erreurs_s_curit.html">Gestion des erreurs</a></li>
+      <li><a href="./08_Sécurité_avancée_&_bonnes_pratiques.html">Sécurité avancée</a></li>
+    </ul>
+  </nav>
+  <h1>Module 8 : Sécurité avancée & bonnes pratiques</h1>
+
+  <p>Ce module présente plusieurs techniques importantes pour renforcer la sécurité de votre API Node.js avec Express :</p>
+  <ul>
+    <li>Limitation du nombre de requêtes (rate limiting)</li>
+    <li>Sécurisation des en-têtes HTTP</li>
+    <li>Séparation des fichiers de configuration sensibles</li>
+    <li>Recommandations générales pour sécuriser une API</li>
+  </ul>
+
+  <h2>1. Limitation des requêtes (Rate Limiting)</h2>
+  <p>Le rate limiting protège votre API contre les attaques par déni de service (DoS) ou abus.</p>
+  <p>Utilisation du middleware <code>express-rate-limit</code> :</p>
+  <pre><code>import rateLimit from "express-rate-limit";
+
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limite chaque IP à 100 requêtes par fenêtre
+  message: { message: "Trop de requêtes, veuillez réessayer plus tard." }
+});
+
+// Appliquer globalement
+app.use(limiter);</code></pre>
+
+  <h2>2. Sécurisation des en-têtes HTTP avec Helmet</h2>
+  <p><code>Helmet</code> est un middleware qui ajoute des en-têtes HTTP sécurisés pour protéger votre API.</p>
+  <pre><code>import helmet from "helmet";
+
+app.use(helmet());</code></pre>
+
+  <p>Cela permet par exemple de :</p>
+  <ul>
+    <li>Empêcher le clickjacking (<code>X-Frame-Options</code>)</li>
+    <li>Activer la protection XSS (<code>X-XSS-Protection</code>)</li>
+    <li>Gérer la politique de contenu (<code>Content-Security-Policy</code>)</li>
+    <li>Masquer la technologie utilisée (<code>X-Powered-By</code>)</li>
+  </ul>
+
+  <h2>3. Séparation et sécurisation des fichiers de configuration</h2>
+  <p>Les informations sensibles (clés JWT, accès BDD) ne doivent jamais être en dur dans le code.</p>
+  <p>Utilisez des variables d'environnement et un fichier <code>.env</code> :</p>
+  <pre><code>PORT=3000
+DB_HOST=localhost
+DB_USER=root
+DB_PASSWORD=secret
+DB_NAME=mydb
+JWT_SECRET=ma_super_cle_secrete</code></pre>
+
+  <p>Avec <code>dotenv</code> pour charger ces variables :</p>
+  <pre><code>import dotenv from "dotenv";
+dotenv.config();
+
+const pool = mysql.createPool({
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0,
+});</code></pre>
+
+  <p>Le fichier <code>.env</code> doit être ajouté dans <code>.gitignore</code> pour ne pas être poussé sur un dépôt public.</p>
+
+  <h2>4. Recommandations générales</h2>
+  <ul>
+    <li>Utilisez HTTPS pour chiffrer les échanges</li>
+    <li>Ne jamais exposer de données sensibles (mots de passe, clés) dans les réponses API</li>
+    <li>Protégez les routes sensibles avec des middlewares d'authentification et d'autorisation</li>
+    <li>Mettez à jour régulièrement vos dépendances</li>
+    <li>Surveillez les logs pour détecter des comportements suspects</li>
+  </ul>
+
+  <h2>5. Exemple d’application <code>app.js</code> sécurisée</h2>
+  <pre><code>import express from "express";
+import dotenv from "dotenv";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
+import userRoutes from "./routes/userRoutes.js";
+
+dotenv.config();
+
+const app = express();
+
+app.use(express.json());
+app.use(helmet());
+
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  message: { message: "Trop de requêtes, veuillez réessayer plus tard." }
+});
+
+app.use(limiter);
+
+app.use("/api/users", userRoutes);
+
+app.use((req, res) => {
+  res.status(404).json({ message: "Route non trouvée" });
+});
+
+// Middleware global d'erreur à placer en dernier
+import { errorHandler } from "./middlewares/errorHandler.js";
+app.use(errorHandler);
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Serveur démarré sur le port ${PORT}`);
+});</code></pre>
+
+  <h2>6. Résumé</h2>
+  <ul>
+    <li>Limiter les requêtes empêche les abus</li>
+    <li>Helmet ajoute plusieurs protections HTTP essentielles</li>
+    <li>Séparer la config sensible dans des variables d'environnement</li>
+    <li>Appliquer toujours l'authentification et autorisation</li>
+    <li>Être vigilant avec les logs et mises à jour</li>
+  </ul>
+
+  <p>Vous avez maintenant toutes les clés pour construire une API REST sécurisée et robuste !</p>
+</body>
+</html>

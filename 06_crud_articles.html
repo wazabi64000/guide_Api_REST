@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <title>Module 6 : CRUD Articles avec Joi et relations</title><link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <nav>
+    <a href="index.html" class="logo">API REST Node.js</a>
+    <ul>
+      <li><a href="index.html">Accueil</a></li>
+      <li><a href="./01_initialisation_du_projet_base_de_donn_es_mysql.html">Initialisation</a></li>
+      <li><a href="./02_authentification_compl_te.html">Authentification</a></li>
+      <li><a href="./03_gestion_des_r_les_user_admin.html">Gestion des rôles</a></li>
+      <li><a href="./04_crud_utilisateur.html">CRUD Utilisateur</a></li>
+      <li><a href="./05_crud_cat_gories.html">CRUD Catégories</a></li>
+      <li><a href="./06_crud_articles.html">CRUD Articles</a></li>
+      <li><a href="./07_gestion_des_erreurs_s_curit.html">Gestion des erreurs</a></li>
+      <li><a href="./08_Sécurité_avancée_&_bonnes_pratiques.html">Sécurité avancée</a></li>
+    </ul>
+  </nav>
+  <h1>Module 6 : CRUD Articles (avec relations User & Category)</h1>
+
+  <p>Dans ce module, nous allons :</p>
+  <ul>
+    <li>Créer la table <code>articles</code> avec relations vers <code>users</code> et <code>categories</code></li>
+    <li>Mettre en place les routes CRUD</li>
+    <li>Ajouter pagination à la récupération des articles</li>
+    <li>Valider les données avec <code>Joi</code></li>
+    <li>Protéger les routes avec authentification JWT</li>
+  </ul>
+
+  <h2>1. Table SQL <code>articles</code></h2>
+  <pre><code>CREATE TABLE articles (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  title VARCHAR(255) NOT NULL,
+  content TEXT NOT NULL,
+  user_id INT NOT NULL,
+  category_id INT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id),
+  FOREIGN KEY (category_id) REFERENCES categories(id)
+);</code></pre>
+
+  <h2>2. Schéma de validation Joi</h2>
+  <pre><code>import Joi from "joi";
+
+export const articleSchema = Joi.object({
+  title: Joi.string().min(3).max(255).required(),
+  content: Joi.string().min(10).required(),
+  category_id: Joi.number().integer().positive().required()
+});</code></pre>
+
+  <h2>3. Contrôleur articles</h2>
+  <pre><code>import pool from "../config/db.js";
+import { articleSchema } from "../validators/articleValidator.js";
+
+export const createArticle = async (req, res) => {
+  const { error } = articleSchema.validate(req.body);
+  if (error) return res.status(400).json({ message: "Validation échouée", details: error.details });
+
+  const { title, content, category_id } = req.body;
+  const user_id = req.user.id; // récupéré depuis middleware JWT
+
+  try {
+    const sql = "INSERT INTO articles (title, content, user_id, category_id) VALUES (?, ?, ?, ?)";
+    await pool.query(sql, [title, content, user_id, category_id]);
+    res.status(201).json({ message: "Article créé" });
+  } catch (err) {
+    res.status(500).json({ message: "Erreur serveur", error: err.message });
+  }
+};
+
+export const getArticles = async (req, res) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = 10;
+  const offset = (page - 1) * limit;
+
+  try {
+    const sql = `
+      SELECT a.id, a.title, a.content, a.created_at,
+             u.id AS user_id, u.username,
+             c.id AS category_id, c.name AS category_name
+      FROM articles a
+      JOIN users u ON a.user_id = u.id
+      JOIN categories c ON a.category_id = c.id
+      ORDER BY a.created_at DESC
+      LIMIT ? OFFSET ?`;
+    const [rows] = await pool.query(sql, [limit, offset]);
+    res.json({ page, articles: rows });
+  } catch (err) {
+    res.status(500).json({ message: "Erreur serveur", error: err.message });
+  }
+};
+
+export const getArticleById = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const sql = `
+      SELECT a.id, a.title, a.content, a.created_at,
+             u.id AS user_id, u.username,
+             c.id AS category_id, c.name AS category_name
+      FROM articles a
+      JOIN users u ON a.user_id = u.id
+      JOIN categories c ON a.category_id = c.id
+      WHERE a.id = ?`;
+    const [rows] = await pool.query(sql, [id]);
+    if (rows.length === 0) return res.status(404).json({ message: "Article non trouvé" });
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ message: "Erreur serveur", error: err.message });
+  }
+};
+
+export const updateArticle = async (req, res) => {
+  const { error } = articleSchema.validate(req.body);
+  if (error) return res.status(400).json({ message: "Validation échouée", details: error.details });
+
+  const { id } = req.params;
+  const user_id = req.user.id;
+  const { title, content, category_id } = req.body;
+
+  try {
+    // Vérifier que l'article appartient bien à l'utilisateur (autorisation)
+    const [rows] = await pool.query("SELECT * FROM articles WHERE id = ?", [id]);
+    if (rows.length === 0) return res.status(404).json({ message: "Article non trouvé" });
+    if (rows[0].user_id !== user_id) return res.status(403).json({ message: "Accès refusé" });
+
+    const sql = "UPDATE articles SET title = ?, content = ?, category_id = ? WHERE id = ?";
+    await pool.query(sql, [title, content, category_id, id]);
+    res.json({ message: "Article mis à jour" });
+  } catch (err) {
+    res.status(500).json({ message: "Erreur serveur", error: err.message });
+  }
+};
+
+export const deleteArticle = async (req, res) => {
+  const { id } = req.params;
+  const user_id = req.user.id;
+
+  try {
+    // Vérifier que l'article appartient à l'utilisateur ou que l'utilisateur est admin
+    const [rows] = await pool.query("SELECT * FROM articles WHERE id = ?", [id]);
+    if (rows.length === 0) return res.status(404).json({ message: "Article non trouvé" });
+
+    if (rows[0].user_id !== user_id && req.user.role !== "admin") {
+      return res.status(403).json({ message: "Accès refusé" });
+    }
+
+    await pool.query("DELETE FROM articles WHERE id = ?", [id]);
+    res.json({ message: "Article supprimé" });
+  } catch (err) {
+    res.status(500).json({ message: "Erreur serveur", error: err.message });
+  }
+};</code></pre>
+
+  <h2>4. Routes articles</h2>
+  <pre><code>import express from "express";
+import { authenticate } from "../middlewares/authMiddleware.js";
+import * as articleController from "../controllers/articleController.js";
+
+const router = express.Router();
+
+router.post("/", authenticate, articleController.createArticle);
+router.get("/", articleController.getArticles);
+router.get("/:id", articleController.getArticleById);
+router.put("/:id", authenticate, articleController.updateArticle);
+router.delete("/:id", authenticate, articleController.deleteArticle);
+
+export default router;</code></pre>
+
+  <h2>5. Ajouter dans <code>app.js</code></h2>
+  <pre><code>import articleRoutes from "./routes/articleRoutes.js";
+app.use("/api/articles", articleRoutes);</code></pre>
+
+  <h2>6. Test Postman</h2>
+  <ul>
+    <li><strong>POST /api/articles</strong> (authentifié) avec JSON : 
+      <pre><code>{
+  "title": "Mon premier article",
+  "content": "Voici le contenu détaillé...",
+  "category_id": 1
+}</code></pre>
+    </li>
+    <li><strong>GET /api/articles?page=1</strong> pour la pagination</li>
+    <li><strong>GET /api/articles/:id</strong> pour un article précis</li>
+    <li><strong>PUT /api/articles/:id</strong> (authentifié, propriétaire seulement)</li>
+    <li><strong>DELETE /api/articles/:id</strong> (authentifié, propriétaire ou admin)</li>
+  </ul>
+
+  <h2>7. Résumé</h2>
+  <ul>
+    <li>Articles liés à un utilisateur (auteur) et une catégorie</li>
+    <li>Validation stricte des données avec Joi</li>
+    <li>Pagination simple</li>
+    <li>Protection des routes par JWT et contrôle d’accès</li>
+  </ul>
+
+  <p>Le prochain module portera sur la gestion des erreurs globales, la validation étendue et les bonnes pratiques de sécurité.</p>
+</body>
+</html>

@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Module 1 : Initialisation du projet + Base de données MySQL</title><link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <nav>
+    <a href="index.html" class="logo">API REST Node.js</a>
+    <ul>
+      <li><a href="index.html">Accueil</a></li>
+      <li><a href="./01_initialisation_du_projet_base_de_donn_es_mysql.html">Initialisation</a></li>
+      <li><a href="./02_authentification_compl_te.html">Authentification</a></li>
+      <li><a href="./03_gestion_des_r_les_user_admin.html">Gestion des rôles</a></li>
+      <li><a href="./04_crud_utilisateur.html">CRUD Utilisateur</a></li>
+      <li><a href="./05_crud_cat_gories.html">CRUD Catégories</a></li>
+      <li><a href="./06_crud_articles.html">CRUD Articles</a></li>
+      <li><a href="./07_gestion_des_erreurs_s_curit.html">Gestion des erreurs</a></li>
+      <li><a href="./08_Sécurité_avancée_&_bonnes_pratiques.html">Sécurité avancée</a></li>
+    </ul>
+  </nav>
+  <h1>Module 1 : Initialisation du projet + Base de données MySQL</h1>
+
+  <p>
+    Dans ce premier module, nous allons poser les bases de notre API REST avec une structure professionnelle
+    en architecture MVC. Nous utiliserons :
+  </p>
+  <ul>
+    <li>Node.js en mode <strong>ESM</strong> (ECMAScript Modules)</li>
+    <li>Express.js comme framework serveur</li>
+    <li>Sequelize avec <code>mysql2/promise</code> pour l’ORM</li>
+    <li>Une base de données MySQL</li>
+  </ul>
+
+  <h2>1. Initialiser le projet</h2>
+  <p>Dans un nouveau dossier :</p>
+  <pre><code>mkdir api-rest-node
+cd api-rest-node
+npm init -y</code></pre>
+
+  <p>Modifiez le fichier <code>package.json</code> pour activer le support ESM :</p>
+  <pre><code>{
+  "type": "module",
+  ...
+}</code></pre>
+
+  <h2>2. Installer les dépendances de base</h2>
+  <p>Installez les dépendances nécessaires :</p>
+  <pre><code>npm install express sequelize mysql2 dotenv</code></pre>
+
+  <h2>3. Arborescence du projet</h2>
+  <p>Organisez le projet avec une architecture MVC propre :</p>
+  <pre><code>api-rest-node/
+├── config/
+│   └── database.js
+├── controllers/
+├── models/
+├── routes/
+├── middlewares/
+├── app.js
+└── .env</code></pre>
+
+  <h2>4. Configuration de la base de données</h2>
+  <p>Créez un fichier <code>.env</code> à la racine :</p>
+  <pre><code>DB_HOST=localhost
+DB_USER=root
+DB_PASSWORD=motdepasse
+DB_NAME=apirestdb</code></pre>
+
+  <h3>Fichier <code>config/database.js</code></h3>
+  <pre><code>import { Sequelize } from "sequelize";
+import dotenv from "dotenv";
+dotenv.config();
+
+const sequelize = new Sequelize(
+  process.env.DB_NAME,
+  process.env.DB_USER,
+  process.env.DB_PASSWORD,
+  {
+    host: process.env.DB_HOST,
+    dialect: "mysql",
+    logging: false,
+  }
+);
+
+export default sequelize;</code></pre>
+
+  <p>Ce fichier initialise Sequelize avec vos variables d’environnement.</p>
+
+  <h2>5. Point d’entrée : <code>app.js</code></h2>
+  <p>Créez un fichier <code>app.js</code> simple pour démarrer :</p>
+  <pre><code>import express from "express";
+import sequelize from "./config/database.js";
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.use(express.json());
+
+// Test DB
+try {
+  await sequelize.authenticate();
+  console.log("Connexion à la base de données réussie !");
+} catch (error) {
+  console.error("Erreur de connexion :", error);
+}
+
+app.get("/", (req, res) => {
+  res.send("API opérationnelle !");
+});
+
+app.listen(PORT, () => {
+  console.log(`Serveur démarré sur le port ${PORT}`);
+});</code></pre>
+
+  <h2>6. Lancer le serveur</h2>
+  <p>Ajoutez un script dans <code>package.json</code> :</p>
+  <pre><code>"scripts": {
+  "dev": "node app.js"
+}</code></pre>
+
+  <p>Et démarrez le serveur :</p>
+  <pre><code>npm run dev</code></pre>
+
+  <h2>7. Résumé</h2>
+  <p>À ce stade, vous avez :</p>
+  <ul>
+    <li>Initialisé un projet Node.js en mode ESM</li>
+    <li>Installé les dépendances de base</li>
+    <li>Créé un serveur Express simple</li>
+    <li>Connecté Sequelize à une base de données MySQL</li>
+  </ul>
+
+  <p>Dans le prochain module, nous allons créer le modèle <code>User</code> et mettre en place
+    l'authentification avec JWT.</p>
+
+</body>
+</html>

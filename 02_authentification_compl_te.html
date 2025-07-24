@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Module 2 : Authentification complète</title><link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <nav>
+    <a href="index.html" class="logo">API REST Node.js</a>
+    <ul>
+      <li><a href="index.html">Accueil</a></li>
+      <li><a href="./01_initialisation_du_projet_base_de_donn_es_mysql.html">Initialisation</a></li>
+      <li><a href="./02_authentification_compl_te.html">Authentification</a></li>
+      <li><a href="./03_gestion_des_r_les_user_admin.html">Gestion des rôles</a></li>
+      <li><a href="./04_crud_utilisateur.html">CRUD Utilisateur</a></li>
+      <li><a href="./05_crud_cat_gories.html">CRUD Catégories</a></li>
+      <li><a href="./06_crud_articles.html">CRUD Articles</a></li>
+      <li><a href="./07_gestion_des_erreurs_s_curit.html">Gestion des erreurs</a></li>
+      <li><a href="./08_Sécurité_avancée_&_bonnes_pratiques.html">Sécurité avancée</a></li>
+    </ul>
+  </nav>
+  <h1>Module 2 : Authentification complète avec JWT (et mysql2/promise)</h1>
+
+  <p>
+    Dans ce module, nous allons :
+  </p>
+  <ul>
+    <li>Créer un utilisateur dans la base MySQL avec <code>mysql2/promise</code></li>
+    <li>Sécuriser les mots de passe avec <code>bcryptjs</code></li>
+    <li>Gérer l’authentification avec <code>jsonwebtoken</code> (JWT)</li>
+  </ul>
+
+  <h2>1. Installation des dépendances</h2>
+  <pre><code>npm install express bcryptjs jsonwebtoken mysql2 dotenv</code></pre>
+
+  <h2>2. Connexion à la base de données</h2>
+  <p><strong>config/db.js</strong> :</p>
+  <pre><code>import mysql from "mysql2/promise";
+import dotenv from "dotenv";
+dotenv.config();
+
+const pool = mysql.createPool({
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  database: process.env.DB_NAME,
+  password: process.env.DB_PASSWORD,
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0
+});
+
+export default pool;</code></pre>
+
+  <h2>3. Création de la table users</h2>
+  <p>À exécuter dans votre base MySQL :</p>
+  <pre><code>CREATE TABLE users (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  username VARCHAR(255) NOT NULL UNIQUE,
+  email VARCHAR(255) NOT NULL UNIQUE,
+  password VARCHAR(255) NOT NULL
+);</code></pre>
+
+  <h2>4. Contrôleur d’authentification</h2>
+  <p><strong>controllers/authController.js</strong> :</p>
+  <pre><code>import pool from "../config/db.js";
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
+
+export const register = async (req, res) => {
+  const { username, email, password } = req.body;
+  try {
+    const hashed = await bcrypt.hash(password, 10);
+    const [existing] = await pool.query("SELECT id FROM users WHERE email = ?", [email]);
+    if (existing.length &gt; 0) {
+      return res.status(400).json({ message: "Email déjà utilisé" });
+    }
+
+    await pool.query(
+      "INSERT INTO users (username, email, password) VALUES (?, ?, ?)",
+      [username, email, hashed]
+    );
+    res.status(201).json({ message: "Utilisateur créé avec succès" });
+  } catch (err) {
+    res.status(500).json({ message: "Erreur serveur", error: err.message });
+  }
+};
+
+export const login = async (req, res) => {
+  const { email, password } = req.body;
+  try {
+    const [users] = await pool.query("SELECT * FROM users WHERE email = ?", [email]);
+    if (users.length === 0) {
+      return res.status(404).json({ message: "Utilisateur non trouvé" });
+    }
+
+    const user = users[0];
+    const match = await bcrypt.compare(password, user.password);
+    if (!match) return res.status(401).json({ message: "Mot de passe incorrect" });
+
+    const token = jwt.sign({ id: user.id, email: user.email }, "votre_secret", {
+      expiresIn: "1h"
+    });
+
+    res.json({ token });
+  } catch (err) {
+    res.status(500).json({ message: "Erreur serveur", error: err.message });
+  }
+};</code></pre>
+
+  <h2>5. Routes d’authentification</h2>
+  <p><strong>routes/authRoutes.js</strong> :</p>
+  <pre><code>import express from "express";
+import { register, login } from "../controllers/authController.js";
+
+const router = express.Router();
+
+router.post("/register", register);
+router.post("/login", login);
+
+export default router;</code></pre>
+
+  <h2>6. Middleware JWT</h2>
+  <p><strong>middlewares/authMiddleware.js</strong> :</p>
+  <pre><code>import jwt from "jsonwebtoken";
+
+export const authenticate = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return res.status(401).json({ message: "Token manquant" });
+  }
+
+  const token = authHeader.split(" ")[1];
+  try {
+    const decoded = jwt.verify(token, "votre_secret");
+    req.user = decoded;
+    next();
+  } catch (err) {
+    res.status(401).json({ message: "Token invalide" });
+  }
+};</code></pre>
+
+  <h2>7. Utilisation dans <code>app.js</code></h2>
+  <p><strong>app.js</strong> :</p>
+  <pre><code>import express from "express";
+import dotenv from "dotenv";
+import authRoutes from "./routes/authRoutes.js";
+
+dotenv.config();
+const app = express();
+app.use(express.json());
+
+app.use("/api/auth", authRoutes);
+
+app.listen(3000, () => {
+  console.log("Serveur lancé sur le port 3000");
+});</code></pre>
+
+  <h2>8. Test avec Postman</h2>
+  <ul>
+    <li><strong>POST /api/auth/register</strong> avec :</li>
+  </ul>
+  <pre><code>{
+  "username": "john",
+  "email": "john@example.com",
+  "password": "123456"
+}</code></pre>
+  <ul>
+    <li><strong>POST /api/auth/login</strong> avec le même email/mot de passe</li>
+  </ul>
+
+  <h2>9. Résumé</h2>
+  <ul>
+    <li>Connexion à MySQL via <code>mysql2/promise</code></li>
+    <li>Inscription avec hash de mot de passe</li>
+    <li>Connexion avec vérification et génération de JWT</li>
+    <li>Middleware d’authentification</li>
+  </ul>
+
+  <p>Dans le prochain module, nous allons ajouter une table <code>roles</code> et gérer les permissions <strong>admin</strong> / <strong>user</strong>.</p>
+</body>
+</html

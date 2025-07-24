@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Module 4 : CRUD Utilisateur</title><link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <nav>
+    <a href="index.html" class="logo">API REST Node.js</a>
+    <ul>
+      <li><a href="index.html">Accueil</a></li>
+      <li><a href="./01_initialisation_du_projet_base_de_donn_es_mysql.html">Initialisation</a></li>
+      <li><a href="./02_authentification_compl_te.html">Authentification</a></li>
+      <li><a href="./03_gestion_des_r_les_user_admin.html">Gestion des rôles</a></li>
+      <li><a href="./04_crud_utilisateur.html">CRUD Utilisateur</a></li>
+      <li><a href="./05_crud_cat_gories.html">CRUD Catégories</a></li>
+      <li><a href="./06_crud_articles.html">CRUD Articles</a></li>
+      <li><a href="./07_gestion_des_erreurs_s_curit.html">Gestion des erreurs</a></li>
+      <li><a href="./08_Sécurité_avancée_&_bonnes_pratiques.html">Sécurité avancée</a></li>
+    </ul>
+  </nav>
+  <h1>Module 4 : CRUD Utilisateur</h1>
+
+  <p>Dans ce module, nous allons :</p>
+  <ul>
+    <li>Récupérer le profil de l'utilisateur connecté</li>
+    <li>Permettre à un utilisateur de modifier ou supprimer son compte</li>
+    <li>Afficher tous les utilisateurs (admin uniquement)</li>
+  </ul>
+
+  <h2>1. Route : profil utilisateur connecté</h2>
+  <p><strong>routes/userRoutes.js</strong></p>
+  <pre><code>import express from "express";
+import { authenticate } from "../middlewares/authMiddleware.js";
+import * as userController from "../controllers/userController.js";
+
+const router = express.Router();
+
+router.get("/me", authenticate, userController.getProfile);
+
+export default router;</code></pre>
+
+  <p><strong>controllers/userController.js</strong></p>
+  <pre><code>import pool from "../config/db.js";
+
+export const getProfile = async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      "SELECT id, username, email, role_id FROM users WHERE id = ?",
+      [req.user.id]
+    );
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ message: "Erreur serveur", error: err.message });
+  }
+};</code></pre>
+
+  <h2>2. Route : mise à jour de son propre compte</h2>
+  <pre><code>router.put("/me", authenticate, userController.updateProfile);</code></pre>
+
+  <pre><code>import bcrypt from "bcryptjs";
+
+export const updateProfile = async (req, res) => {
+  const { username, email, password } = req.body;
+  try {
+    const hashed = password ? await bcrypt.hash(password, 10) : null;
+    const sql = `
+      UPDATE users SET 
+        username = ?, 
+        email = ?${password ? ", password = ?" : ""}
+      WHERE id = ?
+    `;
+    const values = password
+      ? [username, email, hashed, req.user.id]
+      : [username, email, req.user.id];
+
+    await pool.query(sql, values);
+    res.json({ message: "Profil mis à jour" });
+  } catch (err) {
+    res.status(500).json({ message: "Erreur serveur", error: err.message });
+  }
+};</code></pre>
+
+  <h2>3. Route : suppression de son compte</h2>
+  <pre><code>router.delete("/me", authenticate, userController.deleteAccount);</code></pre>
+
+  <pre><code>export const deleteAccount = async (req, res) => {
+  try {
+    await pool.query("DELETE FROM users WHERE id = ?", [req.user.id]);
+    res.json({ message: "Compte supprimé" });
+  } catch (err) {
+    res.status(500).json({ message: "Erreur serveur", error: err.message });
+  }
+};</code></pre>
+
+  <h2>4. Route admin : voir tous les utilisateurs</h2>
+  <pre><code>import { authorizeRole } from "../middlewares/roleMiddleware.js";
+
+router.get("/", authenticate, authorizeRole(["admin"]), userController.getAllUsers);</code></pre>
+
+  <pre><code>export const getAllUsers = async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      "SELECT users.id, username, email, roles.name as role FROM users JOIN roles ON users.role_id = roles.id"
+    );
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ message: "Erreur serveur", error: err.message });
+  }
+};</code></pre>
+
+  <h2>5. Ajouter les routes à <code>app.js</code></h2>
+  <pre><code>import userRoutes from "./routes/userRoutes.js";
+app.use("/api/users", userRoutes);</code></pre>
+
+  <h2>6. Tests Postman</h2>
+  <ul>
+    <li><strong>GET /api/users/me</strong> → avec token</li>
+    <li><strong>PUT /api/users/me</strong> → envoyer JSON avec email, username, password</li>
+    <li><strong>DELETE /api/users/me</strong> → supprime son propre compte</li>
+    <li><strong>GET /api/users</strong> → uniquement pour les admins</li>
+  </ul>
+
+  <h2>7. Résumé</h2>
+  <ul>
+    <li>Un utilisateur peut voir, modifier ou supprimer son compte</li>
+    <li>Un admin peut lister tous les utilisateurs</li>
+    <li>Le tout est sécurisé par JWT et middleware de rôle</li>
+  </ul>
+
+  <p>Dans le prochain module, nous ajouterons la gestion des <strong>catégories</strong> avec CRUD complet.</p>
+</body>
+</html>

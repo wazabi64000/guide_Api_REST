@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <title>Module 5 : CRUD Catégories avec Joi</title><link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <nav>
+    <a href="index.html" class="logo">API REST Node.js</a>
+    <ul>
+      <li><a href="index.html">Accueil</a></li>
+      <li><a href="./01_initialisation_du_projet_base_de_donn_es_mysql.html">Initialisation</a></li>
+      <li><a href="./02_authentification_compl_te.html">Authentification</a></li>
+      <li><a href="./03_gestion_des_r_les_user_admin.html">Gestion des rôles</a></li>
+      <li><a href="./04_crud_utilisateur.html">CRUD Utilisateur</a></li>
+      <li><a href="./05_crud_cat_gories.html">CRUD Catégories</a></li>
+      <li><a href="./06_crud_articles.html">CRUD Articles</a></li>
+      <li><a href="./07_gestion_des_erreurs_s_curit.html">Gestion des erreurs</a></li>
+      <li><a href="./08_Sécurité_avancée_&_bonnes_pratiques.html">Sécurité avancée</a></li>
+    </ul>
+  </nav>
+  <h1>Module 5 : CRUD Catégories (validation avec Joi)</h1>
+
+  <p>Dans ce module, nous allons :</p>
+  <ul>
+    <li>Créer la table <code>categories</code> dans MySQL</li>
+    <li>Implémenter les routes CRUD pour les catégories</li>
+    <li>Protéger les routes avec JWT</li>
+    <li>Valider les données avec <code>Joi</code></li>
+  </ul>
+
+  <h2>1. Installer Joi</h2>
+  <pre><code>npm install joi</code></pre>
+
+  <h2>2. Table SQL <code>categories</code></h2>
+  <pre><code>CREATE TABLE categories (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  name VARCHAR(100) NOT NULL UNIQUE
+);</code></pre>
+
+  <h2>3. Schéma de validation avec Joi</h2>
+  <pre><code>import Joi from "joi";
+
+export const categorySchema = Joi.object({
+  name: Joi.string().min(1).max(100).required()
+});</code></pre>
+
+  <h2>4. Contrôleur catégories</h2>
+  <pre><code>import pool from "../config/db.js";
+import { categorySchema } from "../validators/categoryValidator.js";
+
+export const createCategory = async (req, res) => {
+  try {
+    const { error } = categorySchema.validate(req.body);
+    if (error) return res.status(400).json({ message: "Validation échouée", details: error.details });
+
+    await pool.query("INSERT INTO categories (name) VALUES (?)", [req.body.name]);
+    res.status(201).json({ message: "Catégorie créée" });
+  } catch (err) {
+    res.status(500).json({ message: "Erreur serveur", error: err.message });
+  }
+};
+
+export const getAllCategories = async (req, res) => {
+  try {
+    const [rows] = await pool.query("SELECT * FROM categories");
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ message: "Erreur serveur", error: err.message });
+  }
+};
+
+export const updateCategory = async (req, res) => {
+  try {
+    const { error } = categorySchema.validate(req.body);
+    if (error) return res.status(400).json({ message: "Validation échouée", details: error.details });
+
+    const { id } = req.params;
+    await pool.query("UPDATE categories SET name = ? WHERE id = ?", [req.body.name, id]);
+    res.json({ message: "Catégorie mise à jour" });
+  } catch (err) {
+    res.status(500).json({ message: "Erreur serveur", error: err.message });
+  }
+};
+
+export const deleteCategory = async (req, res) => {
+  try {
+    const { id } = req.params;
+    await pool.query("DELETE FROM categories WHERE id = ?", [id]);
+    res.json({ message: "Catégorie supprimée" });
+  } catch (err) {
+    res.status(500).json({ message: "Erreur serveur", error: err.message });
+  }
+};</code></pre>
+
+  <h2>5. Routes catégories</h2>
+  <pre><code>import express from "express";
+import { authenticate } from "../middlewares/authMiddleware.js";
+import * as categoryController from "../controllers/categoryController.js";
+
+const router = express.Router();
+
+router.post("/", authenticate, categoryController.createCategory);
+router.get("/", categoryController.getAllCategories);
+router.put("/:id", authenticate, categoryController.updateCategory);
+router.delete("/:id", authenticate, categoryController.deleteCategory);
+
+export default router;</code></pre>
+
+  <h2>6. Ajout dans <code>app.js</code></h2>
+  <pre><code>import categoryRoutes from "./routes/categoryRoutes.js";
+app.use("/api/categories", categoryRoutes);</code></pre>
+
+  <h2>7. Tests Postman recommandés</h2>
+  <ul>
+    <li><strong>POST /api/categories</strong> avec JSON : <code>{ "name": "Technologie" }</code></li>
+    <li><strong>PUT /api/categories/:id</strong> pour modifier</li>
+    <li><strong>DELETE /api/categories/:id</strong> pour supprimer</li>
+    <li><strong>GET /api/categories</strong> public</li>
+  </ul>
+
+  <h2>8. Résumé</h2>
+  <ul>
+    <li>Gestion complète des catégories</li>
+    <li>Validation fiable avec Joi</li>
+    <li>Protection par authentification JWT</li>
+  </ul>
+
+  <p>Prochain module : création et gestion des articles avec relations utilisateur et catégorie.</p>
+</body>
+</html>

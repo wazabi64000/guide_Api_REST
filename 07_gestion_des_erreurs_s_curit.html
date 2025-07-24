@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <title>Module 7 : Gestion des erreurs & Validation avancée</title><link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <nav>
+    <a href="index.html" class="logo">API REST Node.js</a>
+    <ul>
+      <li><a href="index.html">Accueil</a></li>
+      <li><a href="./01_initialisation_du_projet_base_de_donn_es_mysql.html">Initialisation</a></li>
+      <li><a href="./02_authentification_compl_te.html">Authentification</a></li>
+      <li><a href="./03_gestion_des_r_les_user_admin.html">Gestion des rôles</a></li>
+      <li><a href="./04_crud_utilisateur.html">CRUD Utilisateur</a></li>
+      <li><a href="./05_crud_cat_gories.html">CRUD Catégories</a></li>
+      <li><a href="./06_crud_articles.html">CRUD Articles</a></li>
+      <li><a href="./07_gestion_des_erreurs_s_curit.html">Gestion des erreurs</a></li>
+      <li><a href="./08_Sécurité_avancée_&_bonnes_pratiques.html">Sécurité avancée</a></li>
+    </ul>
+  </nav>
+  <h1>Module 7 : Gestion des erreurs & Validation avancée</h1>
+
+  <p>Dans ce module, nous allons :</p>
+  <ul>
+    <li>Mettre en place un middleware global de gestion des erreurs</li>
+    <li>Améliorer la validation Joi avec un formatage des messages</li>
+    <li>Gérer proprement les erreurs critiques</li>
+    <li>Appliquer les bonnes pratiques pour un code robuste</li>
+  </ul>
+
+  <h2>1. Middleware global de gestion des erreurs</h2>
+  <p>Dans Express, un middleware d'erreur se définit avec 4 arguments : <code>(err, req, res, next)</code>.</p>
+  <pre><code>export function errorHandler(err, req, res, next) {
+  console.error(err.stack);
+
+  // Cas d'erreurs personnalisées
+  if (err.isJoi) {
+    return res.status(400).json({ message: "Validation échouée", details: err.details });
+  }
+
+  if (err.status) {
+    return res.status(err.status).json({ message: err.message });
+  }
+
+  // Erreur serveur générique
+  res.status(500).json({ message: "Erreur serveur interne" });
+}</code></pre>
+
+  <p>Ce middleware doit être ajouté en fin de chaîne dans <code>app.js</code> :</p>
+  <pre><code>import { errorHandler } from "./middlewares/errorHandler.js";
+
+app.use(errorHandler);</code></pre>
+
+  <h2>2. Validation Joi améliorée</h2>
+  <p>Pour uniformiser les erreurs Joi, on peut créer une fonction helper :</p>
+  <pre><code>export function validate(schema, data) {
+  const { error, value } = schema.validate(data, { abortEarly: false });
+  if (error) {
+    error.isJoi = true; // marquer pour le middleware
+    throw error;
+  }
+  return value;
+}</code></pre>
+
+  <p>Exemple dans un contrôleur :</p>
+  <pre><code>import { validate } from "../validators/validate.js";
+import { categorySchema } from "../validators/categoryValidator.js";
+
+export const createCategory = async (req, res, next) => {
+  try {
+    const data = validate(categorySchema, req.body);
+    // suite de la création avec 'data'
+  } catch (err) {
+    next(err); // passe au middleware d'erreur global
+  }
+};</code></pre>
+
+  <h2>3. Gestion des erreurs critiques</h2>
+  <p>Surveillez et gérez :</p>
+  <ul>
+    <li>Les erreurs non attrapées (ex: promesses non catchées)</li>
+    <li>Les erreurs de connexion à la base</li>
+  </ul>
+  <pre><code>process.on("unhandledRejection", (reason) => {
+  console.error("Unhandled Rejection:", reason);
+  // Optionnel : shutdown propre ou redémarrage
+});
+
+process.on("uncaughtException", (err) => {
+  console.error("Uncaught Exception:", err);
+  process.exit(1); // arrêt pour éviter état instable
+});</code></pre>
+
+  <h2>4. Bonnes pratiques générales</h2>
+  <ul>
+    <li>Ne jamais exposer les détails internes dans les messages d'erreur à l'utilisateur final</li>
+    <li>Centraliser la gestion des erreurs pour plus de cohérence</li>
+    <li>Valider toujours toutes les données externes avec Joi ou équivalent</li>
+    <li>Utiliser des codes HTTP adaptés (400, 401, 403, 404, 500...)</li>
+    <li>Logger les erreurs côté serveur pour audit et débogage</li>
+  </ul>
+
+  <h2>5. Exemple complet d'un contrôleur avec gestion d'erreur</h2>
+  <pre><code>import { validate } from "../validators/validate.js";
+import { articleSchema } from "../validators/articleValidator.js";
+import pool from "../config/db.js";
+
+export const createArticle = async (req, res, next) => {
+  try {
+    const data = validate(articleSchema, req.body);
+    const user_id = req.user.id;
+
+    await pool.query(
+      "INSERT INTO articles (title, content, user_id, category_id) VALUES (?, ?, ?, ?)",
+      [data.title, data.content, user_id, data.category_id]
+    );
+
+    res.status(201).json({ message: "Article créé" });
+  } catch (err) {
+    next(err); // passe au middleware errorHandler
+  }
+};</code></pre>
+
+  <p>Le middleware d'erreur global garantit que toutes les erreurs non capturées arrivent ici et qu'une réponse claire est envoyée.</p>
+
+  <h2>6. Résumé</h2>
+  <ul>
+    <li>Middleware d'erreur global indispensable pour la robustesse</li>
+    <li>Validation Joi enrichie pour des messages détaillés et clairs</li>
+    <li>Gestion des erreurs critiques Node.js</li>
+    <li>Respect des bonnes pratiques HTTP et sécurité</li>
+  </ul>
+
+  <p>Le prochain module portera sur la sécurité avancée (rate limiting, headers HTTP, séparation config).</p>
+</body>
+</html>
